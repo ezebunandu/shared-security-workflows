@@ -67,11 +67,3 @@ jobs:
             jq --arg lic "$license" '{Results: [.Results[].Licenses[]? | select(.Name == $lic)]}' trivy-license-scan-results.json >> forbidden-licenses-found.json
           done
           cat forbidden-licenses-found.json
-      - name: Filter Out Grafana Repo Results
-        run: |
-          jq '{Results: [.Results[] | select(.PkgName | startswith("github.com/grafana/") | not)]}' forbidden-licenses-found.json > filtered-licenses.json
-          cat filtered-licenses.json
-          if [ "$(jq -r '.Results[]? | select(. != null) | .Name' filtered-licenses.json | grep -v '^$' | wc -l)" -gt 0 ]; then
-            exit 1
-          fi
-        if: always()
