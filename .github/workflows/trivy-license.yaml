@@ -1,0 +1,77 @@
+name: Trivy License
+
+on:
+  workflow_dispatch:
+
+jobs:
+  trivy-license:
+    name: Trivy License Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        repository:
+          - owner: grafana
+            repo: grafana # this has go.mod and package.json in the root
+            ref: main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ">=1.24.4"
+      - run: go env GOPATH
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.4.0
+      - name: Install Yarn
+        run: npm install -g yarn
+      - name: Checkout Target
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository.owner }}/${{ matrix.repository.repo }}
+          path: target
+          ref: ${{ matrix.repository.ref }}
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+          trivy --version
+      - name: Prepare dependencies in target
+        run: |
+          cd ./target
+          go mod tidy
+          yarn install
+      - name: Trivy Scan
+        run: |
+          trivy fs --scanners license  --format json --exit-code 0 --output trivy-license-scan-results.json ./target
+      - name: Parse Custom License Definition
+        id: parse_custom_license_definition
+        uses: mikefarah/yq@f03c9dc599c37bfcaf533427211d05e51e6fee64
+        with:
+          cmd: yq '.license.forbidden[]' ./.github/trivy-config.yaml
+      - name: Show only Forbidden Licenses
+        run: |
+          forbidden_licenses="${{ steps.parse_custom_license_definition.outputs.result }}"
+          > forbidden-licenses-found.json
+          for license in $forbidden_licenses; do
+            jq --arg lic "$license" '{Results: [.Results[].Licenses[]? | select(.Name == $lic)]}' trivy-license-scan-results.json >> forbidden-licenses-found.json
+          done
+          cat forbidden-licenses-found.json
+      - name: Filter Out Grafana Repo Results
+        run: |
+          jq '{Results: [.Results[] | select(.PkgName | startswith("github.com/grafana/") | not)]}' forbidden-licenses-found.json > filtered-licenses.json
+          cat filtered-licenses.json
+          if [ "$(jq -r '.Results[]? | select(. != null) | .Name' filtered-licenses.json | grep -v '^$' | wc -l)" -gt 0 ]; then
+            exit 1
+          fi
+        if: always()

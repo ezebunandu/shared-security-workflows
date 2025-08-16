@@ -1,0 +1,7 @@
+license:
+    confidencelevel: "0.9"
+    forbidden: # TODO: confirm list of forbidden licenses
+        - AGPL-1.0
+        - AGPL-3.0
+        - GPL-2.0
+        - LGPL
