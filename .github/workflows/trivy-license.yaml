@@ -37,33 +37,36 @@ jobs:
           repository: ${{ matrix.repository.owner }}/${{ matrix.repository.repo }}
           path: target
           ref: ${{ matrix.repository.ref }}
-      - name: Install Trivy
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget gnupg
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-          trivy --version
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.0
+        with:
+          cache: true
+          version: v0.64.1
       - name: Prepare dependencies in target
         run: |
           cd ./target
           go mod tidy
           yarn install
       - name: Trivy Scan
-        run: |
-          trivy fs --scanners license  --format json --exit-code 0 --output trivy-license-scan-results.json ./target
-      - name: Parse Custom License Definition
-        id: parse_custom_license_definition
-        uses: mikefarah/yq@f03c9dc599c37bfcaf533427211d05e51e6fee64
-        with:
-          cmd: yq '.license.forbidden[]' ./.github/trivy-config.yaml
-      - name: Show only Forbidden Licenses
-        run: |
-          forbidden_licenses="${{ steps.parse_custom_license_definition.outputs.result }}"
-          > forbidden-licenses-found.json
-          for license in $forbidden_licenses; do
-            jq --arg lic "$license" '{Results: [.Results[].Licenses[]? | select(.Name == $lic)]}' trivy-license-scan-results.json >> forbidden-licenses-found.json
-          done
-          cat forbidden-licenses-found.json
+        uses: aquasecurity/trivy-action@master
+        with: 
+          scan-type: "fs"
+          scanners: "license"
+          format: "json"
+          exit-code: "0"
+          scan-ref: ./target
+          trivy-config: ./.github/trivy.yaml
+          output: "trivy-license-scan-results.json"
+      # - name: Parse Custom License Definition
+      #   id: parse_custom_license_definition
+      #   uses: mikefarah/yq@f03c9dc599c37bfcaf533427211d05e51e6fee64
+      #   with:
+      #     cmd: yq '.license.forbidden[]' ./.github/trivy-config.yaml
+      # - name: Show only Forbidden Licenses
+      #   run: |
+      #     forbidden_licenses="${{ steps.parse_custom_license_definition.outputs.result }}"
+      #     > forbidden-licenses-found.json
+      #     for license in $forbidden_licenses; do
+      #       jq --arg lic "$license" '{Results: [.Results[].Licenses[]? | select(.Name == $lic)]}' trivy-license-scan-results.json >> forbidden-licenses-found.json
+      #     done
+      #     cat forbidden-licenses-found.json
