@@ -3,4 +3,4 @@ license:
     forbidden: # the list of licenses we want to block in the scan results
         - AGPL-3.0
         - GPL-3.0
-        - CC-BY-SA # included as a sanity check. Not a type of license we would want to block otherwise.
+        - CC-BY-4.0 # included as a sanity check. Not a type of license we would want to block otherwise.
