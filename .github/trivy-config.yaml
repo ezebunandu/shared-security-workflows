@@ -1,7 +1,6 @@
 license:
     confidencelevel: "0.9"
-    forbidden: # TODO: confirm list of forbidden licenses
-        - AGPL-1.0
+    forbidden: # the list of licenses we want to block in the scan results
         - AGPL-3.0
-        - GPL-2.0
-        - LGPL
+        - GPL-3.0
+        - CC-BY-SA # included as a sanity check. Not a type of license we would want to block otherwise.

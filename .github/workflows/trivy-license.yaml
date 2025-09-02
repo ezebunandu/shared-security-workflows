@@ -1,8 +1,6 @@
-name: Trivy License
-
+name: Trivy License Scanning
 on:
   workflow_dispatch:
-
 jobs:
   trivy-license:
     name: Trivy License Scan
@@ -14,9 +12,8 @@ jobs:
       matrix:
         repository:
           - owner: grafana
-            repo: grafana # this has go.mod and package.json in the root
+            repo: grafana 
             ref: main
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,12 +51,12 @@ jobs:
       - name: Trivy Scan
         run: |
           trivy fs --scanners license  --format json --exit-code 0 --output trivy-license-scan-results.json ./target
-      - name: Parse Custom License Definition
+      - name: Parse Custom License Definition # uses yq to parse the list of forbidden licenses in the trivy-config.yaml file
         id: parse_custom_license_definition
         uses: mikefarah/yq@f03c9dc599c37bfcaf533427211d05e51e6fee64
         with:
           cmd: yq '.license.forbidden[]' ./.github/trivy-config.yaml
-      - name: Show only Forbidden Licenses
+      - name: Show only Forbidden Licenses # filter the results down to only forbidden licenses
         run: |
           forbidden_licenses="${{ steps.parse_custom_license_definition.outputs.result }}"
           > forbidden-licenses-found.json
@@ -67,7 +64,7 @@ jobs:
             jq --arg lic "$license" '{Results: [.Results[].Licenses[]? | select(.Name == $lic)]}' trivy-license-scan-results.json >> forbidden-licenses-found.json
           done
           cat forbidden-licenses-found.json
-      - name: Filter Out Grafana Repo Results
+      - name: Filter Out Grafana Repo Results # it is ok to use the org's own repos, regardless of their license
         run: |
           jq '{Results: [.Results[] | select(.PkgName | startswith("github.com/grafana/") | not)]}' forbidden-licenses-found.json > filtered-licenses.json
           cat filtered-licenses.json
